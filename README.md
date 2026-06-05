@@ -110,7 +110,7 @@ Where $d_1$ is calculated as:
 $$d_1 = \frac{\ln(S/K) + (r + \frac{\sigma^2}{2})t}{\sigma\sqrt{t}}$$
 
 
-*(S = Stock Price, K = Strike Price, r = Risk-Free Rate, $\sigma$ = Volatility, t = Time to Expiry)*
+<i>(S = Stock Price, K = Strike Price, r = Risk-Free Rate, $\sigma$ = Volatility, t = Time to Expiry)</i>
 
 **The Systems Challenge:** Calculating $\Phi(x)$ (the Cumulative Distribution Function of the Standard Normal Distribution) requires computing the error function (`std::erf`). In standard C++, this involves Taylor series expansions that consume hundreds of CPU clock cycles, devastating our tick-to-trade latency.
 
