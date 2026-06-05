@@ -22,7 +22,7 @@ async def udp_listener():
     while True:
         try:
             # Receive the 40-byte struct from C++
-            data, _ = await loop.sock_recv(sock, 1024)
+            data = await loop.sock_recv(sock, 1024)
             if len(data) == 40:
                 # Unpack: Q (uint64), d (double), d (double), i (int32), i (int32), d (double)
                 ts, price, delta, pos, pnl, latency = struct.unpack('=Q d d i i d', data)
