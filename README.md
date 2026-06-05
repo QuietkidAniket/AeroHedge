@@ -2,12 +2,24 @@
 
 ![Project Demo](media/dashboard.gif)
 
+---
 
 ## Project Overview
 
-**AeroHedge** is a deterministic, high-frequency options delta-hedging simulator built from the ground up in C++. It is designed to ingest streaming market data, compute real-time risk metrics using a heavily optimized Black-Scholes pricing model, and route execution orders over a network boundary—all while maintaining strict zero-allocation memory policies on the critical path.
+AeroHedge is a deterministic, high-frequency options delta-hedging engine built from the ground up in C++. It is designed to ingest streaming market data, compute real-time risk metrics via an optimized Black-Scholes pricing model, and route execution orders—all while maintaining a strict zero-allocation memory mandate on the critical path.
 
-The primary objective of this project is to demonstrate **mechanical sympathy, concurrent programming, and network I/O optimization** in a simulated High-Frequency Trading (HFT) environment.
+The primary objective of this architecture is to demonstrate mechanical sympathy, lock-free concurrent programming, and network I/O optimization in a simulated High-Frequency Trading (HFT) environment.
+
+### Low-Latency Concepts Incorporated
+
+To achieve sub-microsecond tick-to-trade execution, this system bypasses standard enterprise software patterns in favor of hardware-aware engineering:
+
+* **Zero-Copy Network I/O:** Bypassing string parsing and heap allocation entirely by casting raw UDP byte streams directly into 32-byte optimized stack structures.
+* **Lock-Free Concurrency:** Utilizing custom Single-Producer-Single-Consumer (SPSC) ring buffers with strict atomic memory ordering (`acquire`/`release`), eliminating OS mutex context switches.
+* **Cache-Line Alignment:** Padding memory structures (`alignas(64)`) to perfectly match L1 hardware cache lines, explicitly isolating memory addresses on the silicon to eliminate "False Sharing".
+* **Hardware Thread Affinity:** Explicitly pinning the Ingestion, Execution, Routing, and Telemetry threads to isolated CPU cores, protecting the critical path from OS scheduler preemption.
+* **Branchless Math:** Replacing heavy scientific libraries (`std::erf`) with single-cycle polynomial approximations to evaluate options pricing mathematics in single-digit nanoseconds.
+* **Out-of-Band Telemetry:** Solving the "Observer Effect" by blasting binary state snapshots over a secondary UDP port, allowing a decoupled Python/WebSocket bridge to render UI analytics without stalling the C++ engine.
 
 ---
 
@@ -15,16 +27,73 @@ The primary objective of this project is to demonstrate **mechanical sympathy, c
 
 To understand the architecture, one must understand the mathematical problem the engine is attempting to solve at microsecond speeds.
 
-### 1. Options & Delta Hedging
+Here is a polished, highly professional rewrite of the "Options & Delta Hedging" section for your `README.md`.
 
-An option is a derivative contract whose value is tied to an underlying asset (like a stock).
+I have elevated the financial terminology to sound like it was written by a quantitative developer, and I included a **Mermaid.js continuous feedback loop flowchart** that natively renders on GitHub. This diagram perfectly illustrates the algorithmic logic your C++ engine executes to maintain a Delta-Neutral state.
 
-* **Delta ($\Delta$)** represents the rate of change of the option's price with respect to the price of the underlying asset.
-* If an option has a Delta of `0.5`, its price will increase by \$0.50 for every \$1.00 increase in the underlying stock.
+---
 
-**The Goal:** Market makers and volatility traders do not want directional risk (betting if the stock goes up or down). They want to be **Delta-Neutral** ($\Delta = 0$). If a trader holds a portfolio of options, the C++ engine dynamically buys or sells shares of the underlying stock to constantly offset the options' Delta as the market moves.
+### 1. Options Pricing & Continuous Delta Hedging
 
-![Delta Illustration](media/delta.gif)
+An option is a non-linear derivative contract whose value derives from an underlying asset (e.g., an equity stock). In institutional market making and high-frequency trading, systems do not take directional bets on whether a stock will rise or fall. Instead, they seek to remain strictly market-neutral while capturing the bid-ask spread or volatility premium.
+
+The primary risk metric in this domain is **Delta ($\Delta$)**—the first partial derivative of the option's price with respect to the underlying asset's price. If an options position has a $\Delta$ of `+0.50`, the portfolio's directional risk is mathematically identical to holding half a share of the underlying stock.
+
+**The Algorithmic Goal (Delta-Neutrality):** To perfectly isolate the portfolio from market direction ($\Delta = 0$), the AeroHedge risk engine continuously evaluates the Black-Scholes Delta on every incoming market tick. If the aggregate Delta drifts beyond a predefined threshold, the system autonomously calculates the exact quantity of underlying stock required to offset the exposure and fires a hedging order over TCP.
+
+The following continuous execution loop demonstrates how the system maintains this equilibrium:
+
+```mermaid
+flowchart TD
+    %% --- MARKET EVENT ---
+    Market(["📈 Market Event<br/>Underlying Stock Price Ticks"])
+
+    %% --- PORTFOLIO STATE ---
+    subgraph Portfolio ["Portfolio Risk State"]
+        direction TB
+        Opt["Options Position<br/>(e.g., Call Options: +Δ)"]
+        Stock["Stock Inventory<br/>(e.g., Short Shares: -Δ)"]
+        NetDelta{"Net Delta Evaluation<br/>Σ(Δ_options) + Σ(Δ_stock)"}
+    end
+
+    %% --- RISK ENGINE LOGIC ---
+    subgraph Engine ["AeroHedge C++ Risk Engine"]
+        direction TB
+        Check{{"Is |Net Δ| > Threshold?"}}
+        Calc["Calculate Hedge Quantity<br/>Shares = -(Net Δ * 100)"]
+        Route["Construct & Route<br/>OrderRequest Struct"]
+    end
+
+    %% --- EXECUTION ---
+    Exchange[("Exchange Matching Engine")]
+
+    %% --- FLOW ---
+    Market --> Opt
+    Opt --> NetDelta
+    Stock -.-> NetDelta
+    NetDelta --> Check
+
+    Check -- "NO (Delta-Neutral)" --> Hold(["Hold Position<br/>Wait for next tick"])
+    Check -- "YES (Risk Exposed)" --> Calc
+    Calc --> Route
+    Route == "TCP send() MSG_DONTWAIT" ==> Exchange
+    Exchange -. "Order Filled<br/>(Inventory Updated)" .-> Stock
+
+    %% --- STYLING ---
+    classDef market fill:#112118,stroke:#00e676,stroke-width:2px,color:#00e676
+    classDef portfolio fill:#151924,stroke:#29b6f6,stroke-width:1px,color:#d1d4dc
+    classDef engine fill:#2a1111,stroke:#ff5252,stroke-width:2px,color:#ffffff
+    classDef action fill:#2e220b,stroke:#ffb300,stroke-width:2px,color:#ffb300
+    classDef neutral fill:#1e222d,stroke:#434651,stroke-width:1px,color:#787b86
+
+    class Market market
+    class Opt,Stock,NetDelta portfolio
+    class Engine engine
+    class Calc,Route action
+    class Hold neutral
+
+```
+
 
 ### 2. The Black-Scholes Model & Computational Bottlenecks
 
@@ -204,40 +273,34 @@ flowchart LR
     %% --- UNOPTIMIZED MEMORY LAYOUT ---
     subgraph Bad ["Poorly Aligned Struct (40 Bytes)"]
         direction TB
-        B1["[ 4B ] uint32_t instrument_id"]:::data
-        P1["[ 4B ] COMPILER PADDING"]:::pad
-        B2["[ 8B ] double price"]:::data
-        B3["[ 4B ] uint32_t volume"]:::data
-        P2["[ 4B ] COMPILER PADDING"]:::pad
-        B4["[ 8B ] uint64_t timestamp"]:::data
-        B5["[ 8B ] uint64_t ingress_cycles"]:::data
-
-        B1 ~~~ P1 ~~~ B2 ~~~ B3 ~~~ P2 ~~~ B4 ~~~ B5
+        B1["[ 4B ] uint32_t instrument_id"]:::data --- P1["[ 4B ] COMPILER PADDING"]:::pad
+        P1 --- B2["[ 8B ] double price"]:::data
+        B2 --- B3["[ 4B ] uint32_t volume"]:::data
+        B3 --- P2["[ 4B ] COMPILER PADDING"]:::pad
+        P2 --- B4["[ 8B ] uint64_t timestamp"]:::data
+        B4 --- B5["[ 8B ] uint64_t ingress_cycles"]:::data
     end
 
     %% --- AEROHEDGE OPTIMIZED LAYOUT ---
     subgraph Good ["AeroHedge Struct (32 Bytes)"]
         direction TB
-        G1["[ 8B ] uint64_t timestamp"]:::opt
-        G2["[ 8B ] double price"]:::opt
-        G3["[ 8B ] uint64_t ingress_cycles"]:::opt
-        G4["[ 4B ] uint32_t instrument_id"]:::opt
-        G5["[ 4B ] uint32_t volume"]:::opt
-
-        G1 ~~~ G2 ~~~ G3 ~~~ G4 ~~~ G5
+        G1["[ 8B ] uint64_t timestamp"]:::opt --- G2["[ 8B ] double price"]:::opt
+        G2 --- G3["[ 8B ] uint64_t ingress_cycles"]:::opt
+        G3 --- G4["[ 4B ] uint32_t instrument_id"]:::opt
+        G4 --- G5["[ 4B ] uint32_t volume"]:::opt
     end
 
     %% --- HARDWARE CACHE REPRESENTATION ---
     subgraph Cache ["64-Byte L1 CPU Cache Line"]
         direction TB
-        C1["[ 32 Bytes ] Perfect Tick Object 1"]:::opt
-        C2["[ 32 Bytes ] Perfect Tick Object 2"]:::opt
-        
-        C1 ~~~ C2
+        C1["[ 32 Bytes ] Perfect Tick Object 1"]:::opt --- C2["[ 32 Bytes ] Perfect Tick Object 2"]:::opt
     end
 
     %% --- RELATIONSHIPS ---
-    Bad -. "Spills over 32B boundaries,\ncausing cache misses" .-> Cache
+    %% Invisible link forces side-by-side placement without drawing an arrow
+    Bad ~~~ Good
+    
+    %% Only the optimized struct connects to the cache
     Good == "Packs cleanly (Zero Waste)" ==> Cache
 
     %% --- STYLING ---
@@ -307,6 +370,8 @@ flowchart LR
 ### 4. The Lock-Free Highway: [`spsc_queue.hpp`](https://www.google.com/search?q=%5Bhttps://github.com/QuietkidAniket/AeroHedge/blob/main/spsc_queue.hpp%5D(https://github.com/QuietkidAniket/AeroHedge/blob/main/spsc_queue.hpp))
 
 If the ingestion layer used a standard `std::mutex` to hand data to the math engine, the thread would have to ask the OS kernel for permission to lock the memory, destroying determinism. The `SPSCQueue` (Single-Producer Single-Consumer) entirely bypasses the OS scheduler.
+In the below illustration the Produce is the head, and the Consumer is the tail. 
+![circular_buffer](media/circular_buffer.gif)
 
 This is the most intricate concurrent C++ implementation in the project, designed to manipulate CPU cache mechanics:
 
@@ -314,58 +379,8 @@ This is the most intricate concurrent C++ implementation in the project, designe
 * **Memory Fencing:** It enforces strict C++ atomics (`memory_order_relaxed`, `memory_order_acquire`, `memory_order_release`) to prevent the compiler or CPU from reordering instructions out of sequence. The `release` flag guarantees that the actual data is written to RAM *before* the consumer thread is permitted to see the updated index.
 * **False Sharing Prevention:** The `alignas(64)` tags on the `head_` and `tail_` atomic indices are vital. If these two variables sat adjacent in memory, Core 1 (writing to head) and Core 2 (reading from tail) would continuously invalidate each other's L1 cache line, causing catastrophic bus traffic. Padding them to 64 bytes forces them onto completely isolated physical silicon pathways.
 
-```mermaid
-flowchart TD
-    %% --- UNOPTIMIZED (FALSE SHARING) ---
-    subgraph Unoptimized ["Standard Queue (False Sharing - High Latency)"]
-        direction TD
-        C1_Bad["CPU Core 1<br/>(Producer)"]
-        C2_Bad["CPU Core 2<br/>(Consumer)"]
 
-        subgraph L1_Shared ["L1 Cache Line Collision"]
-            direction LR
-            Line_Bad["[ Single 64-Byte Cache Line ]<br/>head (8B) | tail (8B) | empty (48B)"]
-        end
 
-        C1_Bad -- "Writes 'head'<br/>(Invalidates entire line)" --> Line_Bad
-        C2_Bad -- "Reads 'tail'<br/>(Forces L1 Cache Miss)" --> Line_Bad
-        
-        %% Circular contention link
-        Line_Bad -. "Cache Coherency Traffic<br/>(Hardware Bus Contention)" .- C1_Bad
-    end
-
-    %% --- AEROHEDGE OPTIMIZED ---
-    subgraph Optimized ["AeroHedge SPSC Queue (Zero False Sharing)"]
-        direction TD
-        C1_Good["CPU Core 1<br/>(Producer)"]
-        C2_Good["CPU Core 2<br/>(Consumer)"]
-
-        subgraph L1_Isolated ["Isolated Cache Lines via alignas(64)"]
-            direction LR
-            Line_Good_1["[ Physical Cache Line A ]<br/>head (8B) | padding (56B)"]
-            Line_Good_2["[ Physical Cache Line B ]<br/>tail (8B) | padding (56B)"]
-            
-            %% Invisible link to stack them horizontally
-            Line_Good_1 ~~~ Line_Good_2
-        end
-
-        C1_Good == "Writes 'head'" ==> Line_Good_1
-        C2_Good == "Reads 'tail'" ==> Line_Good_2
-    end
-
-    %% --- STYLING ---
-    classDef bad fill:#2a1111,stroke:#ff5252,stroke-width:2px,color:#ff5252
-    classDef good fill:#112118,stroke:#00e676,stroke-width:2px,color:#00e676
-    classDef core fill:#1e222d,stroke:#434651,stroke-width:1px,color:#d1d4dc
-    classDef collision fill:#2e220b,stroke:#ffb300,stroke-width:1px,stroke-dasharray: 4 4,color:#ffb300
-    classDef isolated fill:#0f141e,stroke:#29b6f6,stroke-width:1px,stroke-dasharray: 4 4,color:#29b6f6
-
-    class C1_Bad,C2_Bad,C1_Good,C2_Good core
-    class Line_Bad bad
-    class Line_Good_1,Line_Good_2 good
-    class L1_Shared collision
-    class L1_Isolated isolated
-```
 ---
 
 ### 5. The Math Engine: [`risk_engine.hpp`](https://www.google.com/search?q=%5Bhttps://github.com/QuietkidAniket/AeroHedge/blob/main/risk_engine.hpp%5D(https://github.com/QuietkidAniket/AeroHedge/blob/main/risk_engine.hpp))
