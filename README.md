@@ -1,4 +1,4 @@
-# AeroHedge: A zero-allocation option hedging engine executed through algorithmic simulation.
+# AeroHedge: A zero-allocation option hedging engine executed through algorithmic simulation
 
 ![Project Demo](media/dashboard.gif)
 
