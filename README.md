@@ -1,6 +1,6 @@
 # AeroHedge: A zero-allocation option hedging engine executed through algorithmic simulation
 
-![Project Demo](media/dashboard.gif)
+![Project Demo](media/dashboard.png)
 
 ---
 
@@ -371,7 +371,7 @@ flowchart LR
 
 If the ingestion layer used a standard `std::mutex` to hand data to the math engine, the thread would have to ask the OS kernel for permission to lock the memory, destroying determinism. The `SPSCQueue` (Single-Producer Single-Consumer) entirely bypasses the OS scheduler.
 In the below illustration the Produce is the head, and the Consumer is the tail. 
-![circular_buffer](media/circular_buffer.gif)
+![circular_buffer](media/circular_buffer.png)
 
 This is the most intricate concurrent C++ implementation in the project, designed to manipulate CPU cache mechanics:
 
