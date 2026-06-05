@@ -33,7 +33,7 @@ void network_ingestion_loop() {
 }
 
 void risk_execution_loop() {
-    // <-- Passed metrics_queue into the engine
+    // Passed metrics_queue into the engine
     aerohedge::RiskEngine engine(100.0, 0.082, 0.05, 0.20, 5.0, outbound_queue, metrics_queue);
     
     aerohedge::MarketTick tick;
@@ -50,7 +50,7 @@ void order_transmission_loop() {
     gateway.outbound_loop(outbound_queue);
 }
 
-// <-- NEW: Thread 4: Telemetry Broadcaster
+
 void telemetry_loop() {
     std::cout << "[TELEMETRY]: Broadcaster starting on 127.0.0.1:8080...\n";
     aerohedge::TelemetryBroadcaster broadcaster("127.0.0.1", 8080);
@@ -71,12 +71,12 @@ int main() {
     std::thread ingestion_th(network_ingestion_loop);
     std::thread execution_th(risk_execution_loop);
     std::thread transmission_th(order_transmission_loop);
-    std::thread telemetry_th(telemetry_loop); // <-- Spawned Thread 4
+    std::thread telemetry_th(telemetry_loop); 
 
     pin_thread_to_core(ingestion_th, 1);
     pin_thread_to_core(execution_th, 2);
     pin_thread_to_core(transmission_th, 3);
-    pin_thread_to_core(telemetry_th, 4); // <-- Pinned Thread 4
+    pin_thread_to_core(telemetry_th, 4); 
 
     ingestion_th.join();
     execution_th.join();

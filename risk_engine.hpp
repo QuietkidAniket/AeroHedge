@@ -2,7 +2,7 @@
 #include "market_data.hpp"
 #include "order_gateway.hpp"
 #include "spsc_queue.hpp"
-#include "telemetry.hpp" // <-- Added this
+#include "telemetry.hpp" 
 #include "time_utils.hpp"
 #include <cmath>
 
@@ -16,16 +16,16 @@ private:
     double volatility_;
     
     int current_position_;  
-    double cash_;           // <-- Added cash tracker
+    double cash_;           
     double delta_threshold_;
     uint64_t order_id_counter_;
 
     uint64_t latency_records_[10000]; 
     int trade_count_ = 0; 
-    double last_latency_ns_ = 0.0; // <-- Track last latency for the UI
+    double last_latency_ns_ = 0.0; 
 
     SPSCQueue<OrderRequest, 1024>& outbound_queue_;
-    SPSCQueue<TelemetryPacket, 1024>& metrics_queue_; // <-- Added metrics queue reference
+    SPSCQueue<TelemetryPacket, 1024>& metrics_queue_; 
 
     inline double fast_cdf(double x) const {
         const double a1 =  0.254829592; const double a2 = -0.284496736;
@@ -79,7 +79,7 @@ public:
             cash_ -= (hedge_diff * tick.price);
         }
 
-        // --- NEW: FIRE AND FORGET TELEMETRY ---
+        // FIRE AND FORGET TELEMETRY 
         TelemetryPacket tp;
         tp.timestamp = tick.timestamp;
         tp.current_price = tick.price;
