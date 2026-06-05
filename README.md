@@ -1,4 +1,4 @@
-# AeroHedge: Zero-Allocation C++ Options Execution Engine
+# AeroHedge: Zero-Allocation Options Hedging Execution Engine with Simulation
 
 ![Project Demo](media/dashboard.gif)
 
